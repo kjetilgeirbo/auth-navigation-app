@@ -1,0 +1,54 @@
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.title {
+  font-size: 2.5rem;
+  color: #212529;
+  margin-bottom: 2rem;
+  text-align: center;
+}
+
+.welcomeBox {
+  background-color: #d4edda;
+  border: 1px solid #c3e6cb;
+  border-radius: 8px;
+  padding: 2rem;
+  text-align: center;
+}
+
+.welcomeBox h2 {
+  color: #155724;
+  margin-bottom: 1rem;
+}
+
+.welcomeBox p {
+  color: #155724;
+  margin-bottom: 1rem;
+}
+
+.welcomeBox ul {
+  list-style-position: inside;
+  text-align: left;
+  max-width: 400px;
+  margin: 0 auto 1rem;
+  color: #155724;
+}
+
+.authContainer {
+  max-width: 600px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.authContainer h2 {
+  color: #495057;
+  margin-bottom: 1rem;
+}
+
+.authContainer p {
+  color: #6c757d;
+  margin-bottom: 2rem;
+}
