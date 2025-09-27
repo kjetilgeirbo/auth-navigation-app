@@ -2,6 +2,7 @@
 
 import { Authenticator } from '@aws-amplify/ui-react';
 import { useAuthenticator } from '@aws-amplify/ui-react';
+import FeideLogin from '@/components/FeideLogin';
 import styles from './page.module.css';
 
 function HomePage() {
@@ -13,7 +14,7 @@ function HomePage() {
 
       {user ? (
         <div className={styles.welcomeBox}>
-          <h2>Hei, {user.signInDetails?.loginId}!</h2>
+          <h2>Hei, {user.signInDetails?.loginId || user.username}!</h2>
           <p>Du er nå innlogget. Du kan navigere til:</p>
           <ul>
             <li>Offentlig side - tilgjengelig for alle</li>
@@ -24,7 +25,10 @@ function HomePage() {
       ) : (
         <div className={styles.authContainer}>
           <h2>Logg inn eller registrer deg</h2>
-          <p>Logg inn med e-post og passord for å få tilgang til beskyttede sider.</p>
+
+          <FeideLogin />
+
+          <p>Eller logg inn med e-post og passord:</p>
           <Authenticator
             formFields={{
               signUp: {
