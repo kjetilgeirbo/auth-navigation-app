@@ -2,7 +2,7 @@
 
 import { Authenticator } from '@aws-amplify/ui-react';
 import { useAuthenticator } from '@aws-amplify/ui-react';
-import FeideLogin from '@/components/FeideLogin';
+// import FeideLogin from '@/components/FeideLogin'; // Uncomment when Feide is configured
 import styles from './page.module.css';
 
 function HomePage() {
@@ -26,9 +26,10 @@ function HomePage() {
         <div className={styles.authContainer}>
           <h2>Logg inn eller registrer deg</h2>
 
-          <FeideLogin />
+          {/* <FeideLogin /> */}
+          {/* Feide login will be enabled after configuring secrets in Amplify Console */}
 
-          <p>Eller logg inn med e-post og passord:</p>
+          <p>Logg inn med e-post og passord:</p>
           <Authenticator
             formFields={{
               signUp: {
