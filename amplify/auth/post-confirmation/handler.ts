@@ -9,7 +9,8 @@ const client = new CognitoIdentityProviderClient();
 // Hardcoded admin email addresses
 const ADMIN_EMAILS = [
   'geirbo@icloud.com',
-  'frode@fagfilm.no'
+  'frode@fagfilm.no',
+  'admin@fagfilm.no'
 ];
 
 export const handler: PostConfirmationTriggerHandler = async (event) => {

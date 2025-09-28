@@ -1,18 +1,33 @@
 import { defineAuth } from "@aws-amplify/backend";
 import { postConfirmation } from "./post-confirmation/resource";
+import { preSignUp } from "./pre-sign-up/resource";
+import { defineAuthChallenge } from "./define-auth-challenge/resource";
+import { createAuthChallenge } from "./create-auth-challenge/resource";
+import { verifyAuthChallenge } from "./verify-auth-challenge/resource";
 
 export const auth = defineAuth({
   loginWith: {
-    email: true, // Email authentication for admins
+    email: true,
   },
   // Define the admin group
   groups: ["admin"],
-  // Add the post-confirmation trigger
+  // Add all triggers for passwordless flow
   triggers: {
+    preSignUp,
     postConfirmation,
+    defineAuthChallenge,
+    createAuthChallenge,
+    verifyAuthChallengeResponse: verifyAuthChallenge,
   },
-  // Grant the trigger permission to add users to groups
+  // Grant permissions to triggers
   access: (allow) => [
     allow.resource(postConfirmation).to(["addUserToGroup"]),
   ],
+  // Enable custom auth flow for passwordless
+  userAttributes: {
+    email: {
+      required: true,
+      mutable: true,
+    },
+  },
 });

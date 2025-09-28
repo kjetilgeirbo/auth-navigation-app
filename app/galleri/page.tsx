@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { list, getUrl } from 'aws-amplify/storage';
+import { fetchAuthSession } from 'aws-amplify/auth';
 import styles from './page.module.css';
 
 interface GalleryImage {
@@ -13,29 +14,39 @@ export default function GalleriPage() {
   const [images, setImages] = useState<GalleryImage[]>([]);
   const [loading, setLoading] = useState(true);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
-    loadImages();
+    checkAuthAndLoadImages();
   }, []);
+
+  const checkAuthAndLoadImages = async () => {
+    // Check if user is authenticated
+    try {
+      const session = await fetchAuthSession();
+      if (session?.tokens?.idToken) {
+        setIsAuthenticated(true);
+      }
+    } catch (error) {
+      // User is not authenticated
+      setIsAuthenticated(false);
+    }
+
+    // Load images regardless of auth status
+    await loadImages();
+  };
 
   const loadImages = async () => {
     try {
       setLoading(true);
       const result = await list({
-        path: 'gallery/',
-        options: {
-          accessLevel: 'guest'
-        }
+        path: 'gallery/'
       });
 
       const imagePromises = result.items.map(async (item) => {
         try {
           const urlResult = await getUrl({
-            path: item.path,
-            options: {
-              accessLevel: 'guest',
-              validateObjectExistence: false
-            }
+            path: item.path
           });
           return {
             key: item.path,
@@ -97,6 +108,11 @@ export default function GalleriPage() {
                 className={styles.image}
                 loading="lazy"
               />
+              {!isAuthenticated && (
+                <div className={styles.demoOverlay}>
+                  <span className={styles.demoText}>DEMOMODUS</span>
+                </div>
+              )}
             </div>
           ))}
         </div>

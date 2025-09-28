@@ -48,20 +48,13 @@ export default function AdminGalleriPage() {
     try {
       setLoading(true);
       const result = await list({
-        path: 'gallery/',
-        options: {
-          accessLevel: 'guest'
-        }
+        path: 'gallery/'
       });
 
       const imagePromises = result.items.map(async (item) => {
         try {
           const urlResult = await getUrl({
-            path: item.path,
-            options: {
-              accessLevel: 'guest',
-              validateObjectExistence: false
-            }
+            path: item.path
           });
           return {
             key: item.path,
@@ -99,11 +92,7 @@ export default function AdminGalleriPage() {
 
         await uploadData({
           path,
-          data: file,
-          options: {
-            contentType: file.type,
-            accessLevel: 'guest'
-          }
+          data: file
         }).result;
 
         return path;
@@ -131,10 +120,7 @@ export default function AdminGalleriPage() {
 
     try {
       await remove({
-        path: key,
-        options: {
-          accessLevel: 'guest'
-        }
+        path: key
       });
 
       // Update local state

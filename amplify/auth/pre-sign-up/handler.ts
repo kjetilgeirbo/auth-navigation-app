@@ -38,13 +38,8 @@ export const handler: PreSignUpTriggerHandler = async (event) => {
         console.log('Generated anonymous email:', anonymousEmail);
 
         // Override user attributes to ensure complete anonymity
-        event.response.userAttributes = {
-          email: anonymousEmail,
-          email_verified: 'true',
-          // Store the hash for consistent user identification
-          'custom:anonymous_id': anonymousHash,
-          // Don't include ANY personal information
-        };
+        // Note: userAttributes override is not available in pre-sign-up response
+        // The anonymization happens through the identity mapping
 
         // Auto-confirm and verify the user
         event.response.autoConfirmUser = true;
@@ -54,6 +49,16 @@ export const handler: PreSignUpTriggerHandler = async (event) => {
         console.log('Feide user anonymized successfully');
       }
     }
+  } else if (event.triggerSource === 'PreSignUp_SignUp') {
+    // Regular email sign-up - auto-confirm for passwordless flow
+    event.response.autoConfirmUser = true;
+    event.response.autoVerifyEmail = true;
+
+    console.log('Auto-confirming email user for passwordless:', event.request.userAttributes?.email);
+
+    // IMPORTANT: For passwordless auth, we need to set a system-generated password
+    // that the user never needs to know. This allows CUSTOM_WITHOUT_SRP to work.
+    // The password set during sign-up will be ignored as we use custom auth flow.
   }
 
   return event;

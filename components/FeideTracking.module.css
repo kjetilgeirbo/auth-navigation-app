@@ -1,0 +1,57 @@
+.container {
+  width: 100%;
+}
+
+.feideButton {
+  width: 100%;
+  padding: 14px;
+  background: transparent;
+  color: #ffffff;
+  border: 1px solid #727272;
+  border-radius: 500px;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.feideButton:hover {
+  border-color: #ffffff;
+}
+
+.feideIcon {
+  width: 20px;
+  height: 20px;
+  color: #ffffff;
+}
+
+.info {
+  margin-top: 16px;
+  color: #a7a7a7;
+  font-size: 14px;
+  text-align: center;
+  line-height: 1.5;
+}
+
+.confirmedBox {
+  padding: 16px;
+  background: rgba(30, 215, 96, 0.1);
+  border: 1px solid rgba(30, 215, 96, 0.3);
+  border-radius: 8px;
+  color: #1ed760;
+  text-align: center;
+}
+
+.confirmedTitle {
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.confirmedInfo {
+  font-size: 14px;
+  color: #a7a7a7;
+}
