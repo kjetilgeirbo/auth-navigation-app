@@ -172,7 +172,8 @@ When implementing Feide OpenID Connect authentication, use the following documen
 ```
 http://localhost:3000/
 http://localhost:3000/profile
-https://<cognito-domain>.auth.eu-north-1.amazoncognito.com/oauth2/idpresponse
+https://e7e6ccabdde013627bd8.auth.eu-north-1.amazoncognito.com/oauth2/idpresponse (sandbox/localhost)
+https://92b274779fe70972e054.auth.eu-north-1.amazoncognito.com/oauth2/idpresponse (production/Amplify)
 ```
 
 **Required Logout URLs** (må legges til i Feide portal):
