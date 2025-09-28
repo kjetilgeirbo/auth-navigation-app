@@ -1,43 +1,133 @@
 'use client';
 
 import Link from 'next/link';
-import { useAuthenticator } from '@aws-amplify/ui-react';
 import { useEffect, useState } from 'react';
-import { fetchUserAttributes } from 'aws-amplify/auth';
+import { fetchAuthSession, signOut } from 'aws-amplify/auth';
+import { Hub } from 'aws-amplify/utils';
 import styles from './Navigation.module.css';
 
 export default function Navigation() {
-  const { user, signOut } = useAuthenticator((context) => [context.user]);
-  const [isFeideUser, setIsFeideUser] = useState(false);
-  const [displayName, setDisplayName] = useState('');
+  const [isFromFeide, setIsFromFeide] = useState(false);
+  const [isSignedIn, setIsSignedIn] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [userEmail, setUserEmail] = useState('');
+
+  const checkAuthStatus = async () => {
+    try {
+      const session = await fetchAuthSession();
+      if (session?.tokens?.idToken) {
+        setIsSignedIn(true);
+        const email = session.tokens.idToken.payload.email as string;
+        setUserEmail(email);
+
+        // Check if user is in admin group
+        const groups = session.tokens.idToken.payload['cognito:groups'] as string[] | undefined;
+        setIsAdmin(groups?.includes('admin') || false);
+      } else {
+        setIsSignedIn(false);
+        setIsAdmin(false);
+        setUserEmail('');
+      }
+    } catch (error) {
+      // User is not signed in
+      setIsSignedIn(false);
+      setIsAdmin(false);
+      setUserEmail('');
+    }
+  };
+
+  const handleLogout = async () => {
+    if (isSignedIn) {
+      // Sign out from Cognito
+      await signOut();
+      setIsSignedIn(false);
+      setIsAdmin(false);
+      setUserEmail('');
+    }
+
+    // Clear Feide markers
+    localStorage.removeItem('cameViaFeide');
+    sessionStorage.removeItem('feideSession');
+
+    // Dispatch events to update all components
+    window.dispatchEvent(new Event('feideStatusChanged'));
+    window.dispatchEvent(new Event('authStatusChanged'));
+
+    // Reload page to reset state
+    window.location.href = '/';
+  };
+
+  const handleLogin = () => {
+    // Navigate to auth page
+    window.location.href = '/auth';
+  };
+
+  const getUserStatus = () => {
+    if (isSignedIn && isAdmin) {
+      return `🛡️ Admin: ${userEmail}`;
+    }
+    if (isSignedIn) {
+      return `📧 ${userEmail}`;
+    }
+    if (isFromFeide) {
+      return '✓ Feide-bekreftet';
+    }
+    return 'Gjest';
+  };
+
+  const getStatusColor = () => {
+    if (isSignedIn && isAdmin) return '#d32f2f'; // Red for admin
+    if (isSignedIn) return '#2196f3'; // Blue for email user
+    if (isFromFeide) return '#4caf50'; // Green for Feide
+    return '#666'; // Gray for guest
+  };
 
   useEffect(() => {
-    async function checkFeideUser() {
-      if (user) {
-        try {
-          const attributes = await fetchUserAttributes();
-          // Check if user logged in via Feide (custom OIDC provider)
-          const identities = attributes.identities;
-          if (identities) {
-            const identitiesData = JSON.parse(identities);
-            const feideIdentity = identitiesData?.find((id: any) => id.providerName === 'Feide');
-            if (feideIdentity) {
-              setIsFeideUser(true);
-              setDisplayName(attributes.name || attributes.email || user.username);
-            } else {
-              setDisplayName(user.signInDetails?.loginId || user.username);
-            }
-          } else {
-            setDisplayName(user.signInDetails?.loginId || user.username);
-          }
-        } catch (error) {
-          console.error('Error fetching user attributes:', error);
-          setDisplayName(user.signInDetails?.loginId || user.username);
-        }
+    // Check initial auth status
+    checkAuthStatus();
+
+    // Check Feide status
+    const checkFeideStatus = () => {
+      const fromFeide = localStorage.getItem('cameViaFeide') === 'true' ||
+                       sessionStorage.getItem('feideSession') === 'true';
+      setIsFromFeide(fromFeide);
+    };
+
+    checkFeideStatus();
+
+    // Listen for Amplify Auth events using Hub
+    const hubListener = Hub.listen('auth', ({ payload }) => {
+      switch (payload.event) {
+        case 'signedIn':
+        case 'signedOut':
+        case 'tokenRefresh':
+        case 'tokenRefresh_failure':
+          // Re-check auth status when any auth event occurs
+          checkAuthStatus();
+          break;
       }
-    }
-    checkFeideUser();
-  }, [user]);
+    });
+
+    // Listen for custom auth events (from auth page)
+    const handleAuthStatusChange = () => {
+      checkAuthStatus();
+    };
+
+    // Listen for Feide status changes
+    const handleFeideStatusChange = () => {
+      checkFeideStatus();
+    };
+
+    window.addEventListener('authStatusChanged', handleAuthStatusChange);
+    window.addEventListener('feideStatusChanged', handleFeideStatusChange);
+
+    // Cleanup
+    return () => {
+      hubListener();
+      window.removeEventListener('authStatusChanged', handleAuthStatusChange);
+      window.removeEventListener('feideStatusChanged', handleFeideStatusChange);
+    };
+  }, []);
 
   return (
     <nav className={styles.nav}>
@@ -49,25 +139,32 @@ export default function Navigation() {
           <Link href="/public" className={styles.navLink}>
             Offentlig side
           </Link>
-          {user && (
-            <Link href="/protected" className={styles.navLink}>
-              Beskyttet side
-            </Link>
+          <Link href="/galleri" className={styles.navLink}>
+            Galleri
+          </Link>
+          {isAdmin && (
+            <>
+              <Link href="/admin" className={styles.navLink} style={{ color: '#d32f2f', fontWeight: 'bold' }}>
+                Admin
+              </Link>
+              <Link href="/admin/galleri" className={styles.navLink} style={{ color: '#d32f2f', fontWeight: 'bold' }}>
+                Admin Galleri
+              </Link>
+            </>
           )}
         </div>
         <div className={styles.authSection}>
-          {user ? (
-            <>
-              <span className={styles.userInfo}>
-                {isFeideUser && <span className={styles.feideLabel}>[Feide]</span>}
-                Innlogget som: {displayName}
-              </span>
-              <button onClick={signOut} className={styles.signOutButton}>
-                Logg ut
-              </button>
-            </>
+          <span className={styles.userInfo} style={{ color: getStatusColor() }}>
+            {getUserStatus()}
+          </span>
+          {(isFromFeide || isSignedIn) ? (
+            <button onClick={handleLogout} className={styles.signOutButton}>
+              Logg ut
+            </button>
           ) : (
-            <span className={styles.signInPrompt}>Ikke innlogget</span>
+            <button onClick={handleLogin} className={styles.signOutButton}>
+              Logg inn
+            </button>
           )}
         </div>
       </div>

@@ -1,39 +1,18 @@
-import { defineAuth, secret } from "@aws-amplify/backend";
+import { defineAuth } from "@aws-amplify/backend";
+import { postConfirmation } from "./post-confirmation/resource";
 
 export const auth = defineAuth({
   loginWith: {
-    email: true,
-    externalProviders: {
-      oidc: [
-        {
-          name: 'Feide',
-          clientId: secret('FEIDE_CLIENT_ID'),
-          clientSecret: secret('FEIDE_CLIENT_SECRET'),
-          issuerUrl: 'https://auth.dataporten.no',
-          scopes: ['openid', 'profile', 'email'],
-          attributeMapping: {
-            email: 'email',
-          },
-        }
-      ],
-      callbackUrls: [
-        'http://localhost:3000/',
-        'http://localhost:3000/profile',
-        'https://main.d15rrsh2kzi5k8.amplifyapp.com/',
-        'https://main.d15rrsh2kzi5k8.amplifyapp.com/profile',
-      ],
-      logoutUrls: [
-        'http://localhost:3000/',
-        'http://localhost:3000/logout',
-        'https://main.d15rrsh2kzi5k8.amplifyapp.com/',
-        'https://main.d15rrsh2kzi5k8.amplifyapp.com/logout',
-      ],
-    }
+    email: true, // Email authentication for admins
   },
-  userAttributes: {
-    email: {
-      required: true,
-      mutable: true,
-    },
+  // Define the admin group
+  groups: ["admin"],
+  // Add the post-confirmation trigger
+  triggers: {
+    postConfirmation,
   },
+  // Grant the trigger permission to add users to groups
+  access: (allow) => [
+    allow.resource(postConfirmation).to(["addUserToGroup"]),
+  ],
 });

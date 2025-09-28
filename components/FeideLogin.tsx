@@ -18,9 +18,6 @@ export default function FeideLogin() {
 
   return (
     <div className={styles.container}>
-      <div className={styles.divider}>
-        <span>eller</span>
-      </div>
       <button
         onClick={handleFeideLogin}
         className={styles.feideButton}
@@ -31,10 +28,11 @@ export default function FeideLogin() {
           <path d="M12 6c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm0 10c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4z" fill="currentColor"/>
           <circle cx="12" cy="12" r="2" fill="currentColor"/>
         </svg>
-        Logg inn med Feide
+        Logg inn anonymt med Feide
       </button>
       <p className={styles.info}>
-        Bruk din institusjonelle Feide-konto for å logge inn
+        🔒 Fullstendig anonym innlogging<br />
+        Ingen personopplysninger lagres eller spores
       </p>
     </div>
   );

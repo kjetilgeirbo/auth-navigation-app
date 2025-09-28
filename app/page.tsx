@@ -1,78 +1,41 @@
 'use client';
 
-import { Authenticator } from '@aws-amplify/ui-react';
-import { useAuthenticator } from '@aws-amplify/ui-react';
-import FeideLogin from '@/components/FeideLogin';
+import { useRouter } from 'next/navigation';
 import styles from './page.module.css';
 
-function HomePage() {
-  const { user } = useAuthenticator((context) => [context.user]);
+export default function Page() {
+  const router = useRouter();
 
   return (
     <div className={styles.container}>
-      <h1 className={styles.title}>Velkommen til Auth Navigation App</h1>
+      <h1 className={styles.title}>Velkommen!</h1>
 
-      {user ? (
-        <div className={styles.welcomeBox}>
-          <h2>Hei, {user.signInDetails?.loginId || user.username}!</h2>
-          <p>Du er nå innlogget. Du kan navigere til:</p>
-          <ul>
-            <li>Offentlig side - tilgjengelig for alle</li>
-            <li>Beskyttet side - kun for innloggede brukere</li>
-          </ul>
-          <p>Bruk navigasjonsmenyen øverst for å utforske sidene.</p>
-        </div>
-      ) : (
-        <div className={styles.authContainer}>
-          <h2>Logg inn eller registrer deg</h2>
+      <div className={styles.welcomeBox}>
+        <h2>Du har full tilgang som gjest</h2>
+        <p>Alle kan bruke denne siden - du trenger ikke logge inn!</p>
 
-          <FeideLogin />
-
-          <p>Eller logg inn med e-post og passord:</p>
-          <Authenticator
-            formFields={{
-              signUp: {
-                email: {
-                  label: 'E-post',
-                  placeholder: 'Din e-postadresse',
-                  isRequired: true,
-                  order: 1,
-                },
-                password: {
-                  label: 'Passord',
-                  placeholder: 'Velg et passord',
-                  isRequired: true,
-                  order: 2,
-                },
-                confirm_password: {
-                  label: 'Bekreft passord',
-                  placeholder: 'Bekreft passordet',
-                  isRequired: true,
-                  order: 3,
-                },
-              },
-              signIn: {
-                username: {
-                  label: 'E-post',
-                  placeholder: 'Din e-postadresse',
-                },
-                password: {
-                  label: 'Passord',
-                  placeholder: 'Ditt passord',
-                },
-              },
+        <div style={{ marginTop: '30px', textAlign: 'center' }}>
+          <button
+            onClick={() => router.push('/auth')}
+            style={{
+              padding: '15px 30px',
+              fontSize: '18px',
+              backgroundColor: '#2196f3',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontWeight: 'bold',
             }}
-          />
+          >
+            Bli bruker
+          </button>
         </div>
-      )}
-    </div>
-  );
-}
 
-export default function Page() {
-  return (
-    <Authenticator.Provider>
-      <HomePage />
-    </Authenticator.Provider>
+        <div style={{ marginTop: '20px', textAlign: 'center', color: '#666' }}>
+          <p>Registrer deg for å få tilgang til ekstra funksjoner</p>
+        </div>
+      </div>
+    </div>
   );
 }
