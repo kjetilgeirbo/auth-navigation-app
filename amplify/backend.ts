@@ -54,7 +54,18 @@ cfnUserPool.accountRecoverySetting = {
   ]
 };
 
-// Note: SES permissions for Lambda functions
-// The createAuthChallenge Lambda function will need SES permissions to send emails
-// These permissions are configured through the Lambda execution role
-// For production, you may need to manually add SES permissions to the Lambda role in AWS Console
+// Note: SES permissions need to be added to the createAuthChallenge Lambda function
+// In production, you may need to manually add the following IAM policy to the Lambda execution role:
+// {
+//   "Version": "2012-10-17",
+//   "Statement": [
+//     {
+//       "Effect": "Allow",
+//       "Action": [
+//         "ses:SendEmail",
+//         "ses:SendRawEmail"
+//       ],
+//       "Resource": "arn:aws:ses:eu-north-1:*:identity/*"
+//     }
+//   ]
+// }
