@@ -154,19 +154,110 @@ When implementing Feide OpenID Connect authentication, use the following documen
    - Store Feide-specific claims (organization, secondary IDs)
    - Handle attribute mapping in auth configuration
 
-### Project-Specific Feide Configuration
+### Project-Specific Feide Implementation
 
-**IMPORTANT: Authentication Purpose**
-- **This app uses a simplified authentication model BY DESIGN**
-- **We only need to know that a user has been verified through Feide** - no user data transfer needed
-- **Purpose**: Users who are either:
-  1. Logged in with passwordless email authentication, OR
-  2. Have a verified Feide session (stored in localStorage)
+**CRITICAL: Feide Integration Bypasses Cognito Entirely**
 
-  Can view gallery images WITHOUT the "DEMOMODUS" overlay text
-- **Admin access**: Only for users in the admin group (via passwordless login)
-- **DO NOT** try to make Feide login "more secure" or implement full identity federation
-- **The current implementation is intentionally simple** - it just verifies the user authenticated with Feide
+This application implements a **dual authentication system**:
+1. **Cognito passwordless authentication** - for admin access and full app functionality
+2. **Direct Feide verification** - for content access verification only (bypasses Cognito)
+
+**The Feide integration is intentionally simplified and does NOT use Cognito OAuth integration.**
+
+### How Feide Authentication Works
+
+**Authentication Flow:**
+1. User clicks "Logg inn med Feide" button on gallery page
+2. Browser navigates directly to `https://auth.dataporten.no/oauth/authorization` with our client credentials
+3. User authenticates with Feide (using test users: realm `testusers.feide.no`, password `098asd`)
+4. Feide redirects back to `/galleri` with OAuth `code` and `state` parameters
+5. `FeideTracking` component detects the return and sets `localStorage.cameViaFeide = 'true'`
+6. Gallery page removes "DEMOMODUS" overlay for users with Feide verification
+
+**Key Implementation Details:**
+
+#### 1. FeideTracking Component (`components/FeideTracking.tsx`)
+```typescript
+// Direct OAuth URL construction - NO Cognito involved
+const handleFeideClick = () => {
+  const feideUrl = 'https://auth.dataporten.no/oauth/authorization?' +
+    'client_id=b6a97318-be39-4c55-9599-e5aa7d2f991f' +
+    '&response_type=code' +
+    '&scope=openid profile userid email' +
+    '&redirect_uri=' + encodeURIComponent(window.location.origin + '/galleri') +
+    '&state=feide_verification';
+
+  window.location.href = feideUrl; // Direct navigation, no Amplify APIs
+};
+```
+
+#### 2. Return Detection and Session Storage
+```typescript
+// Multiple detection methods for Feide return
+if (urlParams.get('code') ||
+    urlParams.get('state') ||
+    currentUrl.includes('feide') ||
+    document.referrer.includes('feide') ||
+    document.referrer.includes('dataporten')) {
+
+  localStorage.setItem('cameViaFeide', 'true');
+  sessionStorage.setItem('feideSession', Date.now().toString());
+  setIsFromFeide(true);
+
+  // Clean up URL parameters
+  if (urlParams.get('code') || urlParams.get('state')) {
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }
+}
+```
+
+#### 3. Gallery Access Control (`app/galleri/page.tsx`)
+```typescript
+// Dual authentication check
+const [isAuthenticated, setIsAuthenticated] = useState(false); // Cognito auth
+const [isFromFeide, setIsFromFeide] = useState(false);         // Feide verification
+
+// Remove overlay if EITHER Cognito authenticated OR Feide verified
+{!isAuthenticated && !isFromFeide && (
+  <div className={styles.demoOverlay}>
+    <span className={styles.demoText}>DEMOMODUS</span>
+  </div>
+)}
+```
+
+**IMPORTANT: What We DON'T Do:**
+- ❌ We don't use Cognito's `signInWithRedirect` for Feide
+- ❌ We don't process the OAuth `code` parameter for tokens
+- ❌ We don't store or use any user identity data from Feide
+- ❌ We don't create Cognito users from Feide authentication
+- ❌ We don't use Amplify's OAuth configuration for actual Feide login
+
+**What We DO:**
+- ✅ Use direct browser navigation to Feide OAuth endpoint
+- ✅ Detect successful return from Feide via URL parameters and referrer
+- ✅ Store verification status in localStorage/sessionStorage
+- ✅ Remove content overlays based on verification status
+- ✅ Keep Cognito OAuth configuration for potential future use (currently unused)
+
+### Why This Approach?
+
+**User's Requirements:**
+- "I en tidliger versjon så omgikk vi cognito. Det er hele poenget, vi trenger ikke å autentisere brukere fra feide. Bare sette feide session."
+- "Det er med hensikt at vi kun trenger å vite at brukeren har blitt bekreftet som innlogget gjennom feide"
+
+**Benefits:**
+- **Simple**: No complex OAuth token handling or user federation
+- **Fast**: Direct navigation, no additional API calls
+- **Secure**: No user data stored, just verification status
+- **Flexible**: Can coexist with Cognito authentication for admin features
+
+### Component Architecture
+
+**Files Involved in Feide Integration:**
+- `components/FeideTracking.tsx` - Main Feide authentication component
+- `app/galleri/page.tsx` - Gallery page with dual auth checking
+- `amplify/auth/resource.ts` - Contains OAuth config (for potential future use)
+- `components/OAuthListener.tsx` - Cognito OAuth listener (not used for Feide)
 
 **Feide Application (ff-dev)**:
 - **Client ID**: `b6a97318-be39-4c55-9599-e5aa7d2f991f`
@@ -180,18 +271,26 @@ When implementing Feide OpenID Connect authentication, use the following documen
 - **Region**: `eu-north-1`
 - **Sandbox Identifier**: Use default or `feide-dev`
 
-**Required Redirect URIs** (må legges til i Feide portal):
+**Required Redirect URIs** (configured in Feide portal):
 ```
-http://localhost:3000/
-http://localhost:3000/profile
-https://e7e6ccabdde013627bd8.auth.eu-north-1.amazoncognito.com/oauth2/idpresponse (sandbox/localhost)
-https://92b274779fe70972e054.auth.eu-north-1.amazoncognito.com/oauth2/idpresponse (production/Amplify)
+http://localhost:3000/galleri                    # Local development (our implementation)
+http://localhost:3000/                          # Local development (Cognito, unused)
+http://localhost:3000/profile                   # Local development (Cognito, unused)
+https://main.deodkfzpv9kfw.amplifyapp.com/galleri # Production (our implementation)
+https://main.deodkfzpv9kfw.amplifyapp.com/        # Production (Cognito, unused)
+https://main.deodkfzpv9kfw.amplifyapp.com/profile # Production (Cognito, unused)
+
+# Cognito OAuth endpoints (configured but unused by our implementation)
+https://e7e6ccabdde013627bd8.auth.eu-north-1.amazoncognito.com/oauth2/idpresponse (sandbox)
+https://92b274779fe70972e054.auth.eu-north-1.amazoncognito.com/oauth2/idpresponse (production)
 ```
 
-**Required Logout URLs** (må legges til i Feide portal):
+**Required Logout URLs** (configured in Feide portal, but not used in our implementation):
 ```
 http://localhost:3000/
 http://localhost:3000/logout
+https://main.deodkfzpv9kfw.amplifyapp.com/
+https://main.deodkfzpv9kfw.amplifyapp.com/logout
 ```
 
 **Setting Secrets for Local Development**:
@@ -203,4 +302,36 @@ npx ampx sandbox secret set FEIDE_CLIENT_SECRET
 # Enter: 04daac2b-f8cd-4057-8220-7431e40933c2
 ```
 
-**Note**: The Cognito domain URL will be generated after first deployment and needs to be added to Feide portal configuration.
+### Testing Feide Integration
+
+**Manual Testing Steps:**
+1. Start local development: `npm run dev` and `npx ampx sandbox`
+2. Navigate to `http://localhost:3000/galleri`
+3. Verify "Logg inn med Feide" button is visible (if not already verified)
+4. Click the button - should navigate to `auth.dataporten.no`
+5. Click "Feide testbrukere" from the options
+6. Login with any testuser (e.g., `alexander123elev` with password `098asd`)
+7. Should redirect back to `/galleri` with `code` and `state` parameters
+8. Verify the component now shows "✅ Bekreftet via Feide" instead of the login button
+9. Check browser localStorage: `localStorage.cameViaFeide` should be `"true"`
+10. Verify gallery images no longer show "DEMOMODUS" overlay
+
+**Testing Different Scenarios:**
+- **First visit**: Shows login button, overlays visible
+- **After Feide verification**: Shows confirmation, overlays hidden
+- **Refresh after verification**: Verification persists (localStorage)
+- **Different browser/incognito**: Shows login button again (no localStorage)
+
+**Automated Testing with Playwright:**
+```bash
+# The project includes Playwright tests that verify:
+# - Navigation to Feide authentication
+# - Return detection and localStorage setting
+# - UI state changes after verification
+```
+
+**Production Testing:**
+- Same flow but using `https://main.deodkfzpv9kfw.amplifyapp.com/galleri`
+- Feide portal already configured with production redirect URI
+
+**Note**: The Cognito domain URLs are generated after deployment but are unused by our direct Feide implementation.
