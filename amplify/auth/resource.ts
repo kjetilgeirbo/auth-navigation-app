@@ -15,7 +15,7 @@ export const auth = defineAuth({
           clientId: secret("FEIDE_CLIENT_ID"),
           clientSecret: secret("FEIDE_CLIENT_SECRET"),
           issuerUrl: "https://auth.dataporten.no",
-          scopes: ["openid", "profile", "userid", "email"],
+          scopes: ["openid", "profile", "userid", "email"], // Update secrets
         },
       ],
       callbackUrls: [

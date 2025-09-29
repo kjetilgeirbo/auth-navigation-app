@@ -162,6 +162,15 @@
   font-size: 0.9rem;
 }
 
+.feideContainer {
+  margin-top: 2rem;
+  padding: 2rem;
+  background: #f9f9f9;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  text-align: center;
+}
+
 .lightbox {
   position: fixed;
   top: 0;

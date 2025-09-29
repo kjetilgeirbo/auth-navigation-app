@@ -6,6 +6,7 @@ import ConfigureAmplifyClientSide from "@/components/ConfigureAmplify";
 import { Authenticator } from '@aws-amplify/ui-react';
 import '@aws-amplify/ui-react/styles.css';
 import Navigation from "@/components/Navigation";
+import OAuthListener from "@/components/OAuthListener";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -19,6 +20,7 @@ export default function RootLayout({
       <body className={inter.className}>
         <ConfigureAmplifyClientSide />
         <Authenticator.Provider>
+          <OAuthListener />
           <Navigation />
           <main>
             {children}

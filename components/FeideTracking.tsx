@@ -6,44 +6,43 @@ import styles from './FeideTracking.module.css';
 export default function FeideTracking() {
   const [isFromFeide, setIsFromFeide] = useState(false);
 
-  // Feide OAuth URL - uten scopes siden vi ikke trenger data
-  const FEIDE_AUTH_URL = 'https://auth.dataporten.no/oauth/authorization';
-  const CLIENT_ID = 'b6a97318-be39-4c55-9599-e5aa7d2f991f';
-
   useEffect(() => {
     // Check localStorage for Feide status
     setIsFromFeide(localStorage.getItem('cameViaFeide') === 'true');
 
-    // Check if user came back from Feide (via state parameter)
+    // Check if user came back from Feide (check for any Feide-related parameters)
     const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('state') === 'feide-verify' && urlParams.get('code')) {
-      // Set a marker that user came via Feide
+    const currentUrl = window.location.href;
+
+    // If coming from Feide (check for various return scenarios)
+    if (urlParams.get('code') ||
+        urlParams.get('state') ||
+        currentUrl.includes('feide') ||
+        document.referrer.includes('feide') ||
+        document.referrer.includes('dataporten')) {
+      // Mark as came via Feide
       localStorage.setItem('cameViaFeide', 'true');
       sessionStorage.setItem('feideSession', Date.now().toString());
       setIsFromFeide(true);
 
-      // Clean up URL
-      window.history.replaceState({}, document.title, window.location.pathname);
+      // Clean up URL parameters
+      if (urlParams.get('code') || urlParams.get('state')) {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
     }
   }, []);
 
   const handleFeideClick = () => {
-    // Use existing redirect URI that's already configured in Feide
-    const REDIRECT_URI = typeof window !== 'undefined'
-      ? window.location.origin + '/'
-      : 'http://localhost:3000/';
+    // Direct link to Feide OAuth without going through Cognito
+    const feideUrl = 'https://auth.dataporten.no/oauth/authorization?' +
+      'client_id=b6a97318-be39-4c55-9599-e5aa7d2f991f' +
+      '&response_type=code' +
+      '&scope=openid profile userid email' +
+      '&redirect_uri=' + encodeURIComponent(window.location.origin + '/galleri') +
+      '&state=feide_verification';
 
-    // Build Feide authorization URL without requesting any scopes
-    const params = new URLSearchParams({
-      client_id: CLIENT_ID,
-      redirect_uri: REDIRECT_URI,
-      response_type: 'code',
-      state: 'feide-verify', // Mark this as Feide verification
-      // No scopes - we just want to know they authenticated with Feide
-    });
-
-    // Redirect to Feide
-    window.location.href = `${FEIDE_AUTH_URL}?${params.toString()}`;
+    // Navigate to Feide
+    window.location.href = feideUrl;
   };
 
   return (

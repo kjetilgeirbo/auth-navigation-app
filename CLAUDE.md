@@ -156,6 +156,18 @@ When implementing Feide OpenID Connect authentication, use the following documen
 
 ### Project-Specific Feide Configuration
 
+**IMPORTANT: Authentication Purpose**
+- **This app uses a simplified authentication model BY DESIGN**
+- **We only need to know that a user has been verified through Feide** - no user data transfer needed
+- **Purpose**: Users who are either:
+  1. Logged in with passwordless email authentication, OR
+  2. Have a verified Feide session (stored in localStorage)
+
+  Can view gallery images WITHOUT the "DEMOMODUS" overlay text
+- **Admin access**: Only for users in the admin group (via passwordless login)
+- **DO NOT** try to make Feide login "more secure" or implement full identity federation
+- **The current implementation is intentionally simple** - it just verifies the user authenticated with Feide
+
 **Feide Application (ff-dev)**:
 - **Client ID**: `b6a97318-be39-4c55-9599-e5aa7d2f991f`
 - **Client Secret**: `04daac2b-f8cd-4057-8220-7431e40933c2`

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { list, getUrl } from 'aws-amplify/storage';
 import { fetchAuthSession } from 'aws-amplify/auth';
+import FeideTracking from '@/components/FeideTracking';
 import styles from './page.module.css';
 
 interface GalleryImage {
@@ -15,20 +16,23 @@ export default function GalleriPage() {
   const [loading, setLoading] = useState(true);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isFromFeide, setIsFromFeide] = useState(false);
 
   useEffect(() => {
     checkAuthAndLoadImages();
+    // Check if user came via Feide
+    setIsFromFeide(localStorage.getItem('cameViaFeide') === 'true');
   }, []);
 
   const checkAuthAndLoadImages = async () => {
-    // Check if user is authenticated
+    // Check if user is authenticated via Cognito
     try {
       const session = await fetchAuthSession();
       if (session?.tokens?.idToken) {
         setIsAuthenticated(true);
       }
     } catch (error) {
-      // User is not authenticated
+      // User is not authenticated via Cognito
       setIsAuthenticated(false);
     }
 
@@ -108,13 +112,20 @@ export default function GalleriPage() {
                 className={styles.image}
                 loading="lazy"
               />
-              {!isAuthenticated && (
+              {!isAuthenticated && !isFromFeide && (
                 <div className={styles.demoOverlay}>
                   <span className={styles.demoText}>DEMOMODUS</span>
                 </div>
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Show Feide tracking component if not authenticated */}
+      {!isAuthenticated && !isFromFeide && (
+        <div className={styles.feideContainer}>
+          <FeideTracking />
         </div>
       )}
 
