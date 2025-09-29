@@ -7,8 +7,10 @@ export default function FeideTracking() {
   const [isFromFeide, setIsFromFeide] = useState(false);
 
   useEffect(() => {
-    // Check localStorage for Feide status
-    setIsFromFeide(localStorage.getItem('cameViaFeide') === 'true');
+    // Check for Feide status (both persistent and session-based)
+    const fromFeide = localStorage.getItem('cameViaFeide') === 'true' ||
+                     sessionStorage.getItem('feideSession') === 'true';
+    setIsFromFeide(fromFeide);
 
     // Check if user came back from Feide (check for any Feide-related parameters)
     const urlParams = new URLSearchParams(window.location.search);
@@ -20,10 +22,13 @@ export default function FeideTracking() {
         currentUrl.includes('feide') ||
         document.referrer.includes('feide') ||
         document.referrer.includes('dataporten')) {
-      // Mark as came via Feide
+      // Mark as came via Feide (both persistent and session-based)
       localStorage.setItem('cameViaFeide', 'true');
       sessionStorage.setItem('feideSession', Date.now().toString());
       setIsFromFeide(true);
+
+      // Dispatch event to notify other components
+      window.dispatchEvent(new Event('feideStatusChanged'));
 
       // Clean up URL parameters
       if (urlParams.get('code') || urlParams.get('state')) {

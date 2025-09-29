@@ -45,7 +45,7 @@ export default function Navigation() {
       setUserEmail('');
     }
 
-    // Clear Feide markers
+    // Clear Feide session markers (both localStorage and sessionStorage)
     localStorage.removeItem('cameViaFeide');
     sessionStorage.removeItem('feideSession');
 

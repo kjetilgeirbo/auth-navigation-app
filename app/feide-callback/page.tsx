@@ -7,7 +7,7 @@ export default function FeideCallbackPage() {
   const router = useRouter();
 
   useEffect(() => {
-    // Mark that user came via Feide
+    // Mark that user came via Feide (both persistent and session-based)
     localStorage.setItem('cameViaFeide', 'true');
     sessionStorage.setItem('feideSession', Date.now().toString());
 

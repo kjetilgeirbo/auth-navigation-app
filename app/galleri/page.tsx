@@ -20,8 +20,25 @@ export default function GalleriPage() {
 
   useEffect(() => {
     checkAuthAndLoadImages();
-    // Check if user came via Feide
-    setIsFromFeide(localStorage.getItem('cameViaFeide') === 'true');
+    // Check if user came via Feide (both persistent and session-based)
+    const checkFeideStatus = () => {
+      const fromFeide = localStorage.getItem('cameViaFeide') === 'true' ||
+                       sessionStorage.getItem('feideSession') === 'true';
+      setIsFromFeide(fromFeide);
+    };
+
+    checkFeideStatus();
+
+    // Listen for Feide status changes
+    const handleFeideStatusChange = () => {
+      checkFeideStatus();
+    };
+
+    window.addEventListener('feideStatusChanged', handleFeideStatusChange);
+
+    return () => {
+      window.removeEventListener('feideStatusChanged', handleFeideStatusChange);
+    };
   }, []);
 
   const checkAuthAndLoadImages = async () => {

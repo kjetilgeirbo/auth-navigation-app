@@ -33,11 +33,18 @@ export default function PasswordlessAuth() {
 
         // Dispatch event for navigation update
         window.dispatchEvent(new Event('authStatusChanged'));
+      } else {
+        // No valid session
+        setIsSignedIn(false);
+        setIsAdmin(false);
+        setUserEmail('');
       }
     } catch (error) {
-      // User is not signed in
+      console.error('Auth status check error:', error);
+      // User is not signed in or session error
       setIsSignedIn(false);
       setIsAdmin(false);
+      setUserEmail('');
     }
   };
 
@@ -132,21 +139,41 @@ export default function PasswordlessAuth() {
       });
 
       if (result.isSignedIn) {
-        await checkAuthStatus();
         setShowVerification(false);
         setMessage('Velkommen! Du er nå innlogget.');
         setCode('');
         setEmail('');
 
-        // Check if user is admin for redirect
-        const session = await fetchAuthSession();
-        const groups = session.tokens?.idToken?.payload['cognito:groups'] as string[] | undefined;
-        const isAdminUser = groups?.includes('admin') || false;
+        // Use retry logic to wait for session to be available
+        const waitForSession = async (retries = 3) => {
+          for (let i = 0; i < retries; i++) {
+            try {
+              await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1))); // Wait longer each time
 
-        // Redirect after short delay
-        setTimeout(() => {
-          window.location.href = isAdminUser ? '/admin/galleri' : '/galleri';
-        }, 1500);
+              const session = await fetchAuthSession();
+              if (session?.tokens?.idToken) {
+                await checkAuthStatus();
+
+                // Check if user is admin for redirect
+                const groups = session.tokens.idToken.payload['cognito:groups'] as string[] | undefined;
+                const isAdminUser = groups?.includes('admin') || false;
+
+                // Redirect to appropriate page
+                window.location.href = isAdminUser ? '/admin/galleri' : '/galleri';
+                return;
+              }
+            } catch (error) {
+              console.error(`Session check attempt ${i + 1} failed:`, error);
+              if (i === retries - 1) {
+                // Last attempt failed, fallback to galleri
+                console.log('All session attempts failed, redirecting to galleri');
+                window.location.href = '/galleri';
+              }
+            }
+          }
+        };
+
+        waitForSession();
       }
     } catch (error: any) {
       console.error('Verification error:', error);
