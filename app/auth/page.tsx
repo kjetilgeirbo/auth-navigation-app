@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import FeideTracking from '@/components/FeideTracking';
 import PasswordlessAuth from '@/components/PasswordlessAuth';
 import styles from './page.module.css';
@@ -9,7 +9,6 @@ import { fetchAuthSession } from 'aws-amplify/auth';
 
 export default function AuthPage() {
   const router = useRouter();
-  const [showLogin, setShowLogin] = useState(false);
 
   useEffect(() => {
     // Check if user is already authenticated
@@ -37,7 +36,7 @@ export default function AuthPage() {
 
   return (
     <div className={styles.container}>
-      <h1 className={styles.title}>Registrer deg for å begynne å se på galleriet</h1>
+      <h1 className={styles.title}>Logg inn for å se galleriet</h1>
 
       <div className={styles.authBox}>
         {/* Passwordless email authentication */}
@@ -50,17 +49,6 @@ export default function AuthPage() {
 
         {/* Feide login option */}
         <FeideTracking />
-      </div>
-
-      {/* Login link section */}
-      <div className={styles.existingAccount}>
-        <span>Har du allerede en konto? </span>
-        <button
-          className={styles.loginLink}
-          onClick={() => setShowLogin(true)}
-        >
-          Logg på
-        </button>
       </div>
     </div>
   );
