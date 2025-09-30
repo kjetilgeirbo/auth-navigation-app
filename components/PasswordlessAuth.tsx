@@ -145,13 +145,19 @@ export default function PasswordlessAuth() {
         setEmail('');
 
         // Use retry logic to wait for session to be available
-        const waitForSession = async (retries = 3) => {
-          for (let i = 0; i < retries; i++) {
+        const waitForSession = async () => {
+          const delays = [0, 100, 500, 1000, 2000, 3000]; // Start immediately, then progressive delays
+
+          for (let i = 0; i < delays.length; i++) {
             try {
-              await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1))); // Wait longer each time
+              // Wait before attempting (0ms on first try)
+              if (delays[i] > 0) {
+                await new Promise(resolve => setTimeout(resolve, delays[i]));
+              }
 
               const session = await fetchAuthSession();
               if (session?.tokens?.idToken) {
+                console.log(`Session retrieved successfully on attempt ${i + 1}`);
                 await checkAuthStatus();
 
                 // Check if user is admin for redirect
@@ -162,11 +168,20 @@ export default function PasswordlessAuth() {
                 window.location.href = isAdminUser ? '/admin/galleri' : '/galleri';
                 return;
               }
-            } catch (error) {
-              console.error(`Session check attempt ${i + 1} failed:`, error);
-              if (i === retries - 1) {
+            } catch (error: any) {
+              console.log(`Session check attempt ${i + 1}/${delays.length} failed`, error.name);
+
+              // Check if this is the known Amplify v6 issue
+              if (error.name === 'UnexpectedSignInInterruptionException') {
+                console.log('Known Amplify v6 issue detected, retrying...');
+                // Don't show error to user, just continue retrying
+              } else {
+                console.error(`Unexpected error on attempt ${i + 1}:`, error);
+              }
+
+              if (i === delays.length - 1) {
                 // Last attempt failed, fallback to galleri
-                console.log('All session attempts failed, redirecting to galleri');
+                console.log('All session attempts exhausted, redirecting to galleri anyway');
                 window.location.href = '/galleri';
               }
             }
@@ -177,7 +192,17 @@ export default function PasswordlessAuth() {
       }
     } catch (error: any) {
       console.error('Verification error:', error);
-      setMessage('Feil: ' + (error.message || 'Ugyldig kode'));
+
+      // Don't show UnexpectedSignInInterruptionException to user
+      if (error.name === 'UnexpectedSignInInterruptionException') {
+        setMessage('Vennligst vent, logger inn...');
+        // Try to recover by retrying
+        setTimeout(() => {
+          handleCodeSubmit();
+        }, 1000);
+      } else {
+        setMessage('Feil: ' + (error.message || 'Ugyldig kode'));
+      }
     } finally {
       setLoading(false);
     }
