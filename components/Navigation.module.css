@@ -35,6 +35,19 @@
   color: #212529;
 }
 
+.navLinkActive {
+  background-color: #e3f2fd;
+  color: #1976d2;
+  font-weight: 600;
+  border-bottom: 3px solid #1976d2;
+  position: relative;
+}
+
+.navLinkActive:hover {
+  background-color: #bbdefb;
+  color: #1565c0;
+}
+
 .authSection {
   display: flex;
   align-items: center;

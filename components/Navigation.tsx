@@ -1,16 +1,25 @@
 'use client';
 
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { fetchAuthSession, signOut } from 'aws-amplify/auth';
 import { Hub } from 'aws-amplify/utils';
 import styles from './Navigation.module.css';
 
 export default function Navigation() {
+  const pathname = usePathname();
   const [isFromFeide, setIsFromFeide] = useState(false);
   const [isSignedIn, setIsSignedIn] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [userEmail, setUserEmail] = useState('');
+
+  // Check if a link is active based on current pathname
+  const isActiveLink = (href: string) => {
+    if (href === '/' && pathname === '/') return true;
+    if (href !== '/' && pathname.startsWith(href)) return true;
+    return false;
+  };
 
   const checkAuthStatus = async () => {
     try {
@@ -133,21 +142,38 @@ export default function Navigation() {
     <nav className={styles.nav}>
       <div className={styles.navContent}>
         <div className={styles.navLinks}>
-          <Link href="/" className={styles.navLink}>
+          <Link
+            href="/"
+            className={`${styles.navLink} ${isActiveLink('/') ? styles.navLinkActive : ''}`}
+          >
             Hjem
           </Link>
-          <Link href="/public" className={styles.navLink}>
+          <Link
+            href="/public"
+            className={`${styles.navLink} ${isActiveLink('/public') ? styles.navLinkActive : ''}`}
+          >
             Offentlig side
           </Link>
-          <Link href="/galleri" className={styles.navLink}>
+          <Link
+            href="/galleri"
+            className={`${styles.navLink} ${isActiveLink('/galleri') ? styles.navLinkActive : ''}`}
+          >
             Galleri
           </Link>
           {isAdmin && (
             <>
-              <Link href="/admin" className={styles.navLink} style={{ color: '#d32f2f', fontWeight: 'bold' }}>
+              <Link
+                href="/admin"
+                className={`${styles.navLink} ${isActiveLink('/admin') ? styles.navLinkActive : ''}`}
+                style={{ color: '#d32f2f', fontWeight: 'bold' }}
+              >
                 Admin
               </Link>
-              <Link href="/admin/galleri" className={styles.navLink} style={{ color: '#d32f2f', fontWeight: 'bold' }}>
+              <Link
+                href="/admin/galleri"
+                className={`${styles.navLink} ${isActiveLink('/admin/galleri') ? styles.navLinkActive : ''}`}
+                style={{ color: '#d32f2f', fontWeight: 'bold' }}
+              >
                 Admin Galleri
               </Link>
             </>
