@@ -16,8 +16,16 @@ export default function Navigation() {
 
   // Check if a link is active based on current pathname
   const isActiveLink = (href: string) => {
+    // Exact match for home page
     if (href === '/' && pathname === '/') return true;
-    if (href !== '/' && pathname.startsWith(href)) return true;
+
+    // For /admin, only mark as active if we're exactly on /admin, not on sub-pages
+    if (href === '/admin' && pathname === '/admin') return true;
+
+    // For other paths, check if pathname starts with href
+    // This handles sub-pages like /admin/galleri correctly
+    if (href !== '/' && href !== '/admin' && pathname.startsWith(href)) return true;
+
     return false;
   };
 
