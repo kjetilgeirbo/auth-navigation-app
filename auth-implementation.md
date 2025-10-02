@@ -1,4 +1,4 @@
-# Feide Authentication with DEMOMODUS Overlay - Complete Implementation Guide
+# Dual authentication system for Fagfilm - Complete Implementation Guide
 
 ## 📋 Table of Contents
 1. [Overview](#overview)
@@ -75,7 +75,7 @@ The system supports **two authentication methods**:
 ┌────────────────────────────┐
 │  Overlay component         │
 │  hides DEMOMODUS           │
-│  Shows "✅ Bekreftet"      │
+│  Content is fully visible  │
 └────────────────────────────┘
 ```
 
