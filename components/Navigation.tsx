@@ -13,6 +13,7 @@ export default function Navigation() {
   const [isSignedIn, setIsSignedIn] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [userEmail, setUserEmail] = useState('');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Check if a link is active based on current pathname
   const isActiveLink = (href: string) => {
@@ -146,25 +147,45 @@ export default function Navigation() {
     };
   }, []);
 
+  const closeMobileMenu = () => {
+    setMobileMenuOpen(false);
+  };
+
   return (
     <nav className={styles.nav}>
       <div className={styles.navContent}>
-        <div className={styles.navLinks}>
+        {/* Hamburger button for mobile */}
+        <button
+          className={`${styles.hamburger} ${mobileMenuOpen ? styles.hamburgerOpen : ''}`}
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          aria-label="Toggle menu"
+          aria-expanded={mobileMenuOpen}
+        >
+          <span className={styles.hamburgerLine}></span>
+          <span className={styles.hamburgerLine}></span>
+          <span className={styles.hamburgerLine}></span>
+        </button>
+
+        {/* Navigation links */}
+        <div className={`${styles.navLinks} ${mobileMenuOpen ? styles.navLinksOpen : ''}`}>
           <Link
             href="/"
             className={`${styles.navLink} ${isActiveLink('/') ? styles.navLinkActive : ''}`}
+            onClick={closeMobileMenu}
           >
             Hjem
           </Link>
           <Link
             href="/public"
             className={`${styles.navLink} ${isActiveLink('/public') ? styles.navLinkActive : ''}`}
+            onClick={closeMobileMenu}
           >
             Offentlig side
           </Link>
           <Link
             href="/galleri"
             className={`${styles.navLink} ${isActiveLink('/galleri') ? styles.navLinkActive : ''}`}
+            onClick={closeMobileMenu}
           >
             Galleri
           </Link>
@@ -174,6 +195,7 @@ export default function Navigation() {
                 href="/admin"
                 className={`${styles.navLink} ${isActiveLink('/admin') ? styles.navLinkActive : ''}`}
                 style={{ color: '#d32f2f', fontWeight: 'bold' }}
+                onClick={closeMobileMenu}
               >
                 Admin
               </Link>
@@ -181,6 +203,7 @@ export default function Navigation() {
                 href="/admin/galleri"
                 className={`${styles.navLink} ${isActiveLink('/admin/galleri') ? styles.navLinkActive : ''}`}
                 style={{ color: '#d32f2f', fontWeight: 'bold' }}
+                onClick={closeMobileMenu}
               >
                 Admin Galleri
               </Link>
