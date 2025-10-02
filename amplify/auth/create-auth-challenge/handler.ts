@@ -28,7 +28,7 @@ export const handler: CreateAuthChallengeTriggerHandler = async (event) => {
             Html: {
               Data: `
                 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                  <h2>Velkommen til Auth Navigation App</h2>
+                  <h2>Velkommen til Fagfilm auth fix</h2>
                   <p>Din innloggingskode er:</p>
                   <div style="background-color: #f4f4f4; padding: 20px; text-align: center; margin: 20px 0;">
                     <h1 style="font-size: 36px; letter-spacing: 8px; margin: 0;">${code}</h1>

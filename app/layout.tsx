@@ -17,6 +17,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="no">
+      <head>
+        <title>Fagfilm auth fix</title>
+        <meta name="description" content="Fagfilm autentisering og galleri" />
+      </head>
       <body className={inter.className}>
         <ConfigureAmplifyClientSide />
         <Authenticator.Provider>
