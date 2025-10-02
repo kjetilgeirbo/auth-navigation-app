@@ -14,18 +14,20 @@
 
 ## Overview
 
-This implementation provides a **triple authentication system** where:
+This implementation provides a **dual authentication system** where:
 - **Feide users** can verify their access WITHOUT creating Cognito accounts (direct OAuth)
-- **Email users** can authenticate using passwordless Cognito with email codes
-- **Admin users** authenticate via Cognito and get assigned to admin group
+- **Email users** can authenticate using passwordless Cognito with 6-digit email codes
 - Content is overlaid with "DEMOMODUS" text for non-verified/non-authenticated users
+
+**Admin vs. Regular Users:**
+Both admin and regular users authenticate using the **same Cognito passwordless email method**. The only difference is that admin users are automatically added to the "admin" group via a post-confirmation trigger when their email matches a hardcoded list.
 
 ### Key Features
 ✅ Direct Feide OAuth (bypasses Cognito completely for verification)
 ✅ Cognito passwordless email authentication (6-digit code via email)
 ✅ DEMOMODUS overlay on content for non-verified users
 ✅ Persistent verification via localStorage (Feide) and Cognito sessions (email users)
-✅ Admin group management via Cognito
+✅ Automatic admin group assignment based on email address
 ✅ Works with Server-Side Rendering (SSR)
 
 ---
@@ -34,7 +36,7 @@ This implementation provides a **triple authentication system** where:
 
 ### Authentication Flow
 
-The system supports **three authentication methods**:
+The system supports **two authentication methods**:
 
 #### Method 1: Feide Verification (No Cognito)
 ```
@@ -112,14 +114,29 @@ The system supports **three authentication methods**:
        │
        ▼
 ┌──────────────────────────┐
+│  postConfirmation        │
+│  trigger checks email    │
+│  against admin list      │
+└──────┬───────────────────┘
+       │
+       ├─── Admin email? ───────┐
+       │                        │
+       ▼                        ▼
+┌──────────────────┐    ┌──────────────────┐
+│ Add to "admin"   │    │ Regular user     │
+│ group            │    │ (no group)       │
+└──────┬───────────┘    └──────┬───────────┘
+       │                        │
+       └────────┬───────────────┘
+                ▼
+┌──────────────────────────┐
 │  User redirected to      │
 │  /galleri (no overlay)   │
+│  Admins: /admin/galleri  │
 └──────────────────────────┘
 ```
 
-#### Method 3: Admin Users (Cognito + Group)
-Same as Method 2, but users are added to "admin" group via post-confirmation trigger.
-Admin users get access to `/admin` and `/admin/galleri` pages.
+**Important:** Admin vs. regular users use the **same authentication flow**. The only difference is group membership, which is determined by a hardcoded email list in the `postConfirmation` Lambda trigger.
 
 ### Data Storage Strategy
 
@@ -267,6 +284,7 @@ const shouldShowOverlay = !isAuthenticated && !isFromFeide;
 4. Cognito sends 6-digit code via Amazon SES
 5. User enters code to complete authentication
 6. Cognito returns auth tokens (stored in browser)
+7. `postConfirmation` trigger checks if email is in admin list and assigns group if needed
 
 **Key Components:**
 
@@ -275,7 +293,22 @@ const shouldShowOverlay = !isAuthenticated && !isFromFeide;
 - `createAuthChallenge` - Generates 6-digit code and sends email via SES
 - `verifyAuthChallenge` - Validates the code entered by user
 - `preSignUp` - Auto-confirms new users (no separate email verification)
-- `postConfirmation` - Optionally adds users to admin group
+- `postConfirmation` - Checks email against hardcoded admin list and assigns to "admin" group if match
+
+**Admin Group Assignment (postConfirmation trigger):**
+```typescript
+// Hardcoded list of admin emails
+const ADMIN_EMAILS = [
+  'admin1@example.com',
+  'admin2@example.com',
+];
+
+// On user confirmation, check if email is in admin list
+if (ADMIN_EMAILS.includes(userEmail)) {
+  // Add user to "admin" group
+  await addUserToGroup(userName, 'admin', userPoolId);
+}
+```
 
 **Email Template:**
 ```html
@@ -660,7 +693,86 @@ export default async function YourPage() {
 
 ---
 
-### Step 4: Create PasswordlessAuth Component (Optional - for Cognito Email Auth)
+### Step 4: Configure Admin Group Assignment (postConfirmation Lambda Trigger)
+
+**File:** `amplify/auth/post-confirmation/handler.ts`
+
+This Lambda trigger runs **after** a user successfully completes authentication (either new signup or existing user login). It checks if the user's email is in the hardcoded admin list and assigns them to the "admin" group if it matches.
+
+```typescript
+import type { PostConfirmationTriggerHandler } from 'aws-lambda';
+import {
+  CognitoIdentityProviderClient,
+  AdminAddUserToGroupCommand
+} from '@aws-sdk/client-cognito-identity-provider';
+
+const client = new CognitoIdentityProviderClient();
+
+// IMPORTANT: Update this list with your admin email addresses
+const ADMIN_EMAILS = [
+  'admin1@example.com',
+  'admin2@example.com',
+  'admin3@example.com'
+];
+
+export const handler: PostConfirmationTriggerHandler = async (event) => {
+  console.log('Post-confirmation trigger called for user:', event.userName);
+  console.log('User email:', event.request.userAttributes.email);
+
+  // Check if the user's email is in the admin list
+  const userEmail = event.request.userAttributes.email?.toLowerCase();
+
+  if (userEmail && ADMIN_EMAILS.includes(userEmail)) {
+    console.log(`Adding user ${event.userName} to admin group`);
+
+    const command = new AdminAddUserToGroupCommand({
+      GroupName: 'admin',
+      Username: event.userName,
+      UserPoolId: event.userPoolId
+    });
+
+    try {
+      const response = await client.send(command);
+      console.log('Successfully added to admin group:', response.$metadata.requestId);
+    } catch (error) {
+      console.error('Error adding user to admin group:', error);
+      // Don't fail the trigger - let the user sign up even if group assignment fails
+    }
+  } else {
+    console.log('User is not an admin - no group assignment');
+  }
+
+  return event;
+};
+```
+
+**File:** `amplify/auth/post-confirmation/resource.ts`
+
+```typescript
+import { defineFunction } from "@aws-amplify/backend";
+
+export const postConfirmation = defineFunction({
+  name: "post-confirmation",
+});
+```
+
+**Important Notes:**
+1. **Update ADMIN_EMAILS**: Replace the example emails with your actual admin email addresses
+2. **Case-insensitive**: The trigger converts emails to lowercase for comparison
+3. **Non-blocking**: If group assignment fails, the user can still sign in (won't block authentication)
+4. **First login**: Group assignment happens on the user's first successful authentication
+5. **Existing users**: If you add an email to the list later, the user needs to log out and back in for the group to be assigned
+
+**To check if a user is an admin in your frontend:**
+```typescript
+const session = await fetchAuthSession();
+const groups = session.tokens?.idToken?.payload['cognito:groups'] as string[] | undefined;
+const isAdmin = groups?.includes('admin') || false;
+```
+
+---
+
+### Step 5: Create PasswordlessAuth Component (Optional - for Cognito Email Auth)
 
 **Note:** This step is **optional**. Implement this if you want to offer email-based authentication in addition to Feide verification.
 
@@ -944,7 +1056,7 @@ export default function PasswordlessAuth() {
 
 ---
 
-### Step 5: Create Auth Page (Optional - combines both auth methods)
+### Step 6: Create Auth Page (Optional - combines both auth methods)
 
 **File:** `app/auth/page.tsx`
 
@@ -1272,15 +1384,26 @@ Before deploying to production:
 
 ## Summary
 
-This implementation provides a lightweight Feide verification system that:
+This implementation provides a dual authentication system that:
+
+**Feide Verification:**
 - Works independently of Cognito
 - Stores minimal data (only verification status)
-- Provides visual feedback via DEMOMODUS overlay
-- Persists verification across sessions
-- Integrates seamlessly with SSR/Next.js
-- Requires minimal backend configuration
+- Direct OAuth flow without backend processing
 
-The key is the **dual-check system** (Cognito auth OR Feide verification) and the **event-driven architecture** that keeps all components synchronized.
+**Cognito Passwordless Email:**
+- Single authentication method for both admin and regular users
+- Admin assignment via `postConfirmation` trigger based on hardcoded email list
+- 6-digit code sent via Amazon SES
+- Automatic user creation on first login
+
+**Common Features:**
+- DEMOMODUS overlay provides visual feedback
+- Persistent verification/authentication across sessions
+- Integrates seamlessly with SSR/Next.js
+- Event-driven architecture keeps all components synchronized
+
+The key is the **dual-check system** (Cognito auth OR Feide verification) where admin vs. regular users is simply a matter of Cognito group membership, not a separate authentication method.
 
 ---
 
