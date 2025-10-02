@@ -14,18 +14,18 @@
 
 ## Overview
 
-This implementation provides a **dual authentication system** where:
-- **Feide users** can verify their access WITHOUT creating Cognito accounts
-- Content is overlaid with "DEMOMODUS" text for non-verified users
-- **No user data is stored** - only verification status in browser storage
-- Works alongside optional Cognito authentication for admin features
+This implementation provides a **triple authentication system** where:
+- **Feide users** can verify their access WITHOUT creating Cognito accounts (direct OAuth)
+- **Email users** can authenticate using passwordless Cognito with email codes
+- **Admin users** authenticate via Cognito and get assigned to admin group
+- Content is overlaid with "DEMOMODUS" text for non-verified/non-authenticated users
 
 ### Key Features
-✅ Direct Feide OAuth (bypasses Cognito completely)
+✅ Direct Feide OAuth (bypasses Cognito completely for verification)
+✅ Cognito passwordless email authentication (6-digit code via email)
 ✅ DEMOMODUS overlay on content for non-verified users
-✅ Persistent verification via localStorage
-✅ Session-based tracking via sessionStorage
-✅ No personal data storage
+✅ Persistent verification via localStorage (Feide) and Cognito sessions (email users)
+✅ Admin group management via Cognito
 ✅ Works with Server-Side Rendering (SSR)
 
 ---
@@ -33,6 +33,10 @@ This implementation provides a **dual authentication system** where:
 ## Architecture
 
 ### Authentication Flow
+
+The system supports **three authentication methods**:
+
+#### Method 1: Feide Verification (No Cognito)
 ```
 ┌─────────────┐
 │   User      │
@@ -73,6 +77,50 @@ This implementation provides a **dual authentication system** where:
 └────────────────────────────┘
 ```
 
+#### Method 2: Passwordless Email (Cognito)
+```
+┌─────────────┐
+│   User      │
+│  Visits     │
+│  /auth      │
+└──────┬──────┘
+       │
+       ▼
+┌──────────────────────────┐
+│  Enter email address     │
+│  Click "Send code"       │
+└──────┬───────────────────┘
+       │
+       ▼
+┌──────────────────────────┐
+│  Cognito sends 6-digit   │
+│  code via SES email      │
+└──────┬───────────────────┘
+       │
+       ▼
+┌──────────────────────────┐
+│  User enters code        │
+│  Submits verification    │
+└──────┬───────────────────┘
+       │
+       ▼
+┌──────────────────────────┐
+│  Cognito validates code  │
+│  Creates/retrieves user  │
+│  Returns auth tokens     │
+└──────┬───────────────────┘
+       │
+       ▼
+┌──────────────────────────┐
+│  User redirected to      │
+│  /galleri (no overlay)   │
+└──────────────────────────┘
+```
+
+#### Method 3: Admin Users (Cognito + Group)
+Same as Method 2, but users are added to "admin" group via post-confirmation trigger.
+Admin users get access to `/admin` and `/admin/galleri` pages.
+
 ### Data Storage Strategy
 
 **localStorage** (persistent across sessions):
@@ -91,7 +139,41 @@ This implementation provides a **dual authentication system** where:
 
 ## Prerequisites
 
-### 1. Feide Application Setup
+### 1. AWS Amplify Gen 2 Setup (for Email Authentication)
+
+**Required only if implementing Cognito passwordless email auth**
+
+You need AWS Amplify Gen 2 backend with:
+- Cognito User Pool configured for custom authentication
+- Amazon SES verified domain/email for sending codes
+- Lambda triggers for custom auth challenge flow
+
+**Amplify Auth Configuration** (`amplify/auth/resource.ts`):
+```typescript
+import { defineAuth } from "@aws-amplify/backend";
+
+export const auth = defineAuth({
+  loginWith: {
+    email: true, // Enable email login
+  },
+  triggers: {
+    defineAuthChallenge,      // Determine which challenge to present
+    createAuthChallenge,      // Generate and send 6-digit code
+    verifyAuthChallengeResponse, // Validate the code
+    preSignUp,                // Auto-confirm users
+    postConfirmation,         // Optional: assign to groups
+  },
+});
+```
+
+**Amazon SES Setup:**
+1. Verify your sender email or domain in AWS SES
+2. Move out of SES Sandbox (for production)
+3. Set `SES_FROM_EMAIL` environment variable (e.g., `noreply@yourdomain.com`)
+
+---
+
+### 2. Feide Application Setup
 You need a registered Feide application at https://dashboard.feide.no
 
 **Required Configuration:**
@@ -174,6 +256,89 @@ The overlay shows when BOTH conditions are true:
 
 ```typescript
 const shouldShowOverlay = !isAuthenticated && !isFromFeide;
+```
+
+### 5. Cognito Passwordless Email Authentication
+
+**How it works:**
+1. User enters email address
+2. System tries to sign in with CUSTOM_WITHOUT_SRP flow
+3. If user doesn't exist, automatically creates account
+4. Cognito sends 6-digit code via Amazon SES
+5. User enters code to complete authentication
+6. Cognito returns auth tokens (stored in browser)
+
+**Key Components:**
+
+**Amplify Auth Triggers (Lambda functions):**
+- `defineAuthChallenge` - Determines which challenge to present
+- `createAuthChallenge` - Generates 6-digit code and sends email via SES
+- `verifyAuthChallenge` - Validates the code entered by user
+- `preSignUp` - Auto-confirms new users (no separate email verification)
+- `postConfirmation` - Optionally adds users to admin group
+
+**Email Template:**
+```html
+<h2>Velkommen til [App Name]</h2>
+<p>Din innloggingskode er:</p>
+<h1 style="font-size: 36px; letter-spacing: 8px;">[6-DIGIT-CODE]</h1>
+<p>Denne koden er gyldig i 15 minutter.</p>
+```
+
+**Authentication Flow Code:**
+```typescript
+// Step 1: Try to sign in
+const signInResult = await signIn({
+  username: email,
+  options: {
+    authFlowType: 'CUSTOM_WITHOUT_SRP', // Passwordless flow
+  },
+});
+
+// Step 2: If user doesn't exist, create account
+if (signInError.name === 'UserNotFoundException') {
+  await signUp({
+    username: email,
+    password: 'dummy', // Not used, triggers will handle
+    options: {
+      userAttributes: { email }
+    }
+  });
+  // Then sign in again (code will be sent)
+}
+
+// Step 3: User receives custom challenge
+if (signInResult.nextStep.signInStep === 'CONFIRM_SIGN_IN_WITH_CUSTOM_CHALLENGE') {
+  // Show code input field
+}
+
+// Step 4: Confirm with code
+const result = await confirmSignIn({
+  challengeResponse: code, // 6-digit code from email
+});
+
+// Step 5: User is now authenticated
+if (result.isSignedIn) {
+  // Tokens are automatically stored by Amplify
+  // Check session with fetchAuthSession()
+}
+```
+
+**Session Management:**
+```typescript
+// Check if user is authenticated
+const session = await fetchAuthSession();
+if (session?.tokens?.idToken) {
+  // User is signed in
+  const email = session.tokens.idToken.payload.email;
+  const groups = session.tokens.idToken.payload['cognito:groups'];
+}
+```
+
+**Logout:**
+```typescript
+await signOut(); // Clears all Cognito tokens
+window.dispatchEvent(new Event('authStatusChanged')); // Notify components
 ```
 
 ---
@@ -490,6 +655,380 @@ export default async function YourPage() {
       )}
     </div>
   );
+}
+```
+
+---
+
+### Step 4: Create PasswordlessAuth Component (Optional - for Cognito Email Auth)
+
+**Note:** This step is **optional**. Implement this if you want to offer email-based authentication in addition to Feide verification.
+
+**File:** `components/PasswordlessAuth.tsx`
+
+```typescript
+'use client';
+
+import { useState, useEffect } from 'react';
+import { signUp, signIn, signOut, fetchAuthSession, confirmSignIn } from 'aws-amplify/auth';
+import styles from './PasswordlessAuth.module.css';
+
+export default function PasswordlessAuth() {
+  const [email, setEmail] = useState('');
+  const [code, setCode] = useState('');
+  const [showVerification, setShowVerification] = useState(false);
+  const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleEmailSubmit = async () => {
+    if (!email || !email.includes('@')) {
+      setMessage('Vennligst skriv inn en gyldig e-postadresse');
+      return;
+    }
+
+    setLoading(true);
+    setMessage('');
+
+    try {
+      // Try to sign in with custom auth flow
+      try {
+        const signInResult = await signIn({
+          username: email,
+          options: {
+            authFlowType: 'CUSTOM_WITHOUT_SRP', // Passwordless
+          },
+        });
+
+        if (signInResult.nextStep.signInStep === 'CONFIRM_SIGN_IN_WITH_CUSTOM_CHALLENGE') {
+          setShowVerification(true);
+          setMessage('Vi har sendt en innloggingskode til din e-post');
+        }
+      } catch (signInError: any) {
+        // User doesn't exist, create account
+        if (signInError.name === 'UserNotFoundException' ||
+            signInError.name === 'NotAuthorizedException') {
+
+          // Generate dummy password (not used)
+          const dummyPassword = Math.random().toString(36).slice(-8) + 'Aa1!';
+
+          await signUp({
+            username: email,
+            password: dummyPassword,
+            options: {
+              userAttributes: { email },
+            },
+          });
+
+          // Sign in again after signup
+          const signInResult = await signIn({
+            username: email,
+            options: {
+              authFlowType: 'CUSTOM_WITHOUT_SRP',
+            },
+          });
+
+          if (signInResult.nextStep.signInStep === 'CONFIRM_SIGN_IN_WITH_CUSTOM_CHALLENGE') {
+            setShowVerification(true);
+            setMessage('Velkommen! Vi har sendt en verifiseringskode til din e-post');
+          }
+        } else {
+          throw signInError;
+        }
+      }
+    } catch (error: any) {
+      console.error('Auth error:', error);
+      setMessage('Feil: ' + (error.message || 'Kunne ikke sende verifiseringskode'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCodeSubmit = async () => {
+    if (!code || code.length !== 6) {
+      setMessage('Vennligst skriv inn 6-sifret kode');
+      return;
+    }
+
+    setLoading(true);
+    setMessage('');
+
+    try {
+      const result = await confirmSignIn({
+        challengeResponse: code,
+      });
+
+      if (result.isSignedIn) {
+        setShowVerification(false);
+        setMessage('Velkommen! Du er nå innlogget.');
+
+        // Dispatch event for navigation update
+        window.dispatchEvent(new Event('authStatusChanged'));
+
+        // Redirect to gallery
+        window.location.href = '/galleri';
+      }
+    } catch (error: any) {
+      console.error('Verification error:', error);
+      setMessage('Feil: Ugyldig kode');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className={styles.container}>
+      {!showVerification ? (
+        <>
+          <div className={styles.inputGroup}>
+            <label className={styles.label} htmlFor="email">
+              E-postadresse
+            </label>
+            <input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="navn@domene.no"
+              onKeyPress={(e) => e.key === 'Enter' && handleEmailSubmit()}
+              className={styles.input}
+              disabled={loading}
+            />
+          </div>
+          <button
+            onClick={handleEmailSubmit}
+            disabled={!email || loading}
+            className={styles.button}
+          >
+            {loading ? 'Sender...' : 'Send innloggingskode'}
+          </button>
+        </>
+      ) : (
+        <>
+          <h2 className={styles.verificationTitle}>Verifiser e-post</h2>
+          <p className={styles.verificationInfo}>
+            Vi har sendt en kode til <strong>{email}</strong>
+          </p>
+          <input
+            type="text"
+            value={code}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+            placeholder="000000"
+            maxLength={6}
+            onKeyPress={(e) => e.key === 'Enter' && handleCodeSubmit()}
+            className={styles.codeInput}
+            disabled={loading}
+          />
+          <button
+            onClick={handleCodeSubmit}
+            disabled={!code || code.length !== 6 || loading}
+            className={styles.button}
+          >
+            {loading ? 'Verifiserer...' : 'Bekreft kode'}
+          </button>
+          <button
+            onClick={() => {
+              setShowVerification(false);
+              setCode('');
+              setMessage('');
+            }}
+            className={styles.backButton}
+          >
+            Tilbake
+          </button>
+        </>
+      )}
+      {message && (
+        <div className={styles.message}>
+          {message}
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+**File:** `components/PasswordlessAuth.module.css`
+
+```css
+.container {
+  width: 100%;
+  max-width: 400px;
+}
+
+.inputGroup {
+  margin-bottom: 1rem;
+}
+
+.label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: #333;
+}
+
+.input,
+.codeInput {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 16px;
+}
+
+.codeInput {
+  text-align: center;
+  font-size: 24px;
+  letter-spacing: 0.5em;
+  font-weight: bold;
+}
+
+.button {
+  width: 100%;
+  padding: 12px;
+  background: #2196f3;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.button:hover:not(:disabled) {
+  background: #1976d2;
+}
+
+.button:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.backButton {
+  width: 100%;
+  padding: 12px;
+  background: transparent;
+  color: #666;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+  margin-top: 0.5rem;
+}
+
+.verificationTitle {
+  margin-bottom: 0.5rem;
+  color: #333;
+}
+
+.verificationInfo {
+  margin-bottom: 1.5rem;
+  color: #666;
+  font-size: 14px;
+}
+
+.message {
+  margin-top: 1rem;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  background: #e3f2fd;
+  color: #1976d2;
+}
+
+.messageError {
+  background: #ffebee;
+  color: #c62828;
+}
+```
+
+---
+
+### Step 5: Create Auth Page (Optional - combines both auth methods)
+
+**File:** `app/auth/page.tsx`
+
+```typescript
+'use client';
+
+import PasswordlessAuth from '@/components/PasswordlessAuth';
+import FeideTracking from '@/components/FeideTracking';
+import styles from './page.module.css';
+
+export default function AuthPage() {
+  return (
+    <div className={styles.container}>
+      <h1 className={styles.title}>Logg inn</h1>
+
+      <div className={styles.authBox}>
+        {/* Email authentication */}
+        <PasswordlessAuth />
+
+        {/* Divider */}
+        <div className={styles.divider}>
+          <span>eller</span>
+        </div>
+
+        {/* Feide verification */}
+        <FeideTracking />
+      </div>
+    </div>
+  );
+}
+```
+
+**File:** `app/auth/page.module.css`
+
+```css
+.container {
+  max-width: 500px;
+  margin: 4rem auto;
+  padding: 2rem;
+}
+
+.title {
+  text-align: center;
+  margin-bottom: 2rem;
+  font-size: 2rem;
+  color: #333;
+}
+
+.authBox {
+  background: white;
+  padding: 2rem;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.divider {
+  margin: 2rem 0;
+  text-align: center;
+  position: relative;
+}
+
+.divider::before,
+.divider::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 45%;
+  height: 1px;
+  background: #ddd;
+}
+
+.divider::before {
+  left: 0;
+}
+
+.divider::after {
+  right: 0;
+}
+
+.divider span {
+  background: white;
+  padding: 0 1rem;
+  color: #666;
+  font-size: 14px;
 }
 ```
 
