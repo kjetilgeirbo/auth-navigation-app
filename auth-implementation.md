@@ -441,7 +441,7 @@ export default function FeideTracking() {
 
   return (
     <div className={styles.container}>
-      {!isFromFeide ? (
+      {!isFromFeide && (
         <>
           <button
             onClick={handleFeideClick}
@@ -455,13 +455,6 @@ export default function FeideTracking() {
             ✅ Bekreft med Feide for å fjerne overlay
           </p>
         </>
-      ) : (
-        <div className={styles.confirmedBox}>
-          <p className={styles.confirmedTitle}>✅ Bekreftet via Feide</p>
-          <p className={styles.confirmedInfo}>
-            Du har bekreftet din tilgang via Feide. Ingen personopplysninger er lagret.
-          </p>
-        </div>
       )}
     </div>
   );
@@ -1220,7 +1213,6 @@ const getUserStatus = () => {
 
 #### 3. After Verification
 - [ ] DEMOMODUS overlay is hidden
-- [ ] "✅ Bekreftet via Feide" message shows
 - [ ] Content is fully visible
 - [ ] Verification persists on page refresh
 

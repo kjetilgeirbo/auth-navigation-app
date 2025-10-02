@@ -312,7 +312,7 @@ npx ampx sandbox secret set FEIDE_CLIENT_SECRET
 5. Click "Feide testbrukere" from the options
 6. Login with any testuser (e.g., `alexander123elev` with password `098asd`)
 7. Should redirect back to `/galleri` with `code` and `state` parameters
-8. Verify the component now shows "✅ Bekreftet via Feide" instead of the login button
+8. Verify the login button is no longer visible (component shows nothing when verified)
 9. Check browser localStorage: `localStorage.cameViaFeide` should be `"true"`
 10. Verify gallery images no longer show "DEMOMODUS" overlay
 
