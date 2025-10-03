@@ -4,7 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is an AWS Amplify Gen 2 + Next.js authentication app with Norwegian language interface. The app implements email/password authentication using AWS Cognito and provides navigation between public and protected pages.
+This is an AWS Amplify Gen 2 + Next.js app with Norwegian interface implementing a **dual authentication system**:
+1. **Cognito passwordless email authentication** (6-digit code via email) for both regular users and admins
+2. **Direct Feide OAuth verification** (bypasses Cognito) for content access
+
+Admin users are automatically assigned to the "admin" group via a `postConfirmation` Lambda trigger when their email matches a hardcoded list.
 
 ## Core Development Commands
 
@@ -36,31 +40,63 @@ npx ampx sandbox --identifier production
 ### Backend Structure (AWS Amplify Gen 2)
 
 The backend uses Amplify Gen 2's `defineBackend` pattern:
-- **`amplify/backend.ts`** - Central backend configuration that imports and combines auth and data resources
-- **`amplify/auth/resource.ts`** - Defines Cognito authentication with email/password, configured for Norwegian users
+- **`amplify/backend.ts`** - Central backend configuration that imports and combines auth, data, and storage resources
+- **`amplify/auth/resource.ts`** - Defines Cognito authentication with passwordless email (custom auth flow) and Feide OAuth config
+- **`amplify/auth/post-confirmation/handler.ts`** - Lambda trigger that assigns users to "admin" group based on hardcoded email list
+- **`amplify/auth/create-auth-challenge/handler.ts`** - Lambda trigger that generates and sends 6-digit codes via SES
+- **`amplify/auth/verify-auth-challenge/handler.ts`** - Lambda trigger that validates 6-digit codes
 - **`amplify/data/resource.ts`** - Defines GraphQL schema with DynamoDB tables using `defineData`
+- **`amplify/storage/resource.ts`** - Defines S3 storage for gallery images with access rules
 - **`amplify_outputs.json`** - Auto-generated configuration file containing AWS resource IDs and endpoints (DO NOT edit manually)
 
 ### Frontend Architecture
 
-The app uses Next.js 14 App Router with client-side authentication:
-- **Root Layout** (`app/layout.tsx`) - Wraps entire app in `Authenticator.Provider` and includes global navigation
-- **Navigation Component** (`components/Navigation.tsx`) - Horizontal top navigation that shows different options based on auth state
-- **Protected Route Pattern** - Protected pages use `useAuthenticator` hook to check auth state and redirect if needed
+The app uses Next.js 14 App Router with mixed SSR and client-side patterns:
+- **Root Layout** (`app/layout.tsx`) - Wraps entire app in `Authenticator.Provider` and includes Navigation and OAuthListener
+- **Navigation Component** (`components/Navigation.tsx`) - Responsive navigation with hamburger menu, shows admin links for admin group members
+- **PasswordlessAuth Component** (`components/PasswordlessAuth.tsx`) - Handles Cognito passwordless email authentication with 6-digit codes
+- **FeideTracking Component** (`components/FeideTracking.tsx`) - Handles direct Feide OAuth verification (bypasses Cognito)
+- **Gallery Pages** (`app/galleri/page.tsx`, `app/admin/galleri/page.tsx`) - SSR pages with S3 image listings and DEMOMODUS overlay for non-authenticated users
+- **Auth Page** (`app/auth/page.tsx`) - Combines both PasswordlessAuth and FeideTracking for unified login experience
 
-### Authentication Flow
+### Authentication Flows
 
-1. **ConfigureAmplifyClientSide** component configures Amplify with AWS resources on client-side
-2. **Authenticator.Provider** in layout provides auth context to all pages
-3. Pages access auth state via `useAuthenticator` hook
-4. Protected pages check `user` object and redirect to home if not authenticated
+**Method 1: Cognito Passwordless Email (for regular users and admins)**
+1. User enters email on `/auth` page
+2. System tries `signIn` with `CUSTOM_WITHOUT_SRP` flow
+3. If user doesn't exist, automatically creates account with `signUp`
+4. Lambda trigger (`create-auth-challenge`) generates 6-digit code and sends via SES
+5. User enters code to verify
+6. Lambda trigger (`verify-auth-challenge`) validates the code
+7. Upon success, `postConfirmation` trigger checks email against hardcoded admin list
+8. If email matches, user is added to "admin" group in Cognito
+9. User is redirected to `/galleri` (regular) or `/admin/galleri` (admin)
+
+**Method 2: Feide Verification (bypasses Cognito)**
+1. User clicks "Logg inn med Feide" button on gallery page
+2. Browser navigates directly to Feide OAuth endpoint with client credentials
+3. User authenticates with Feide (test users: `testusers.feide.no`, password `098asd`)
+4. Feide redirects back to `/galleri` with `code` and `state` parameters
+5. `FeideTracking` component detects return and sets `localStorage.cameViaFeide = 'true'`
+6. DEMOMODUS overlay is hidden on gallery content (no Cognito session created)
+
+**Key Difference:**
+- Feide verification only removes content overlays, does NOT create Cognito users
+- Cognito authentication creates actual user sessions with tokens
+- Admin users are determined by email match in `postConfirmation` trigger, not a separate auth method
 
 ## Key Technical Decisions
 
-- **Client-side authentication only** - All components use `'use client'` directive since Amplify Auth requires client-side JavaScript
-- **Norwegian interface** - All UI text is in Norwegian, HTML lang="no"
-- **Email as username** - Cognito configured to use email address as both username and login identifier
-- **Minimal data model** - Basic Item model with owner-based access control for demonstration
+- **Dual authentication system** - Cognito passwordless email AND direct Feide OAuth verification
+- **No passwords** - Custom auth flow with 6-digit codes sent via email (no traditional passwords)
+- **Feide bypasses Cognito** - Direct OAuth navigation, only stores verification boolean in localStorage
+- **Admin group assignment** - Automatic via `postConfirmation` Lambda trigger based on hardcoded email list
+- **DEMOMODUS overlay** - Visual indicator on content for non-authenticated/non-verified users
+- **Event-driven updates** - Components sync via `window.dispatchEvent` for `authStatusChanged` and `feideStatusChanged`
+- **Norwegian interface** - All UI text is in Norwegian, HTML `lang="no"`
+- **Responsive design** - Navigation includes hamburger menu for mobile devices
+- **SSR for galleries** - Server-side rendering with S3 image fetching for better performance
+- **Storage access control** - S3 bucket with identity pool and guest access for public gallery
 
 ## Environment-Specific Notes
 
@@ -76,10 +112,24 @@ The app uses Next.js 14 App Router with client-side authentication:
 
 ## Testing Authentication
 
-When testing auth flow:
-1. Create account requires valid email format and password meeting policy (8+ chars, uppercase, lowercase, number, symbol)
-2. Email verification is configured but may be disabled in sandbox mode
-3. Auth tokens are stored in browser localStorage under `aws-amplify` keys
+### Testing Cognito Passwordless Email Auth:
+1. Navigate to `/auth` page
+2. Enter any valid email address (real email not required in sandbox)
+3. Check terminal for 6-digit code (printed in Lambda logs)
+4. Enter the 6-digit code to complete authentication
+5. If email matches admin list in `post-confirmation/handler.ts`, user gets admin access
+6. Auth tokens stored in browser localStorage under `aws-amplify` keys
+7. Admin users redirected to `/admin/galleri`, regular users to `/galleri`
+
+### Testing Feide Verification:
+1. Navigate to `/galleri` page (DEMOMODUS overlay should be visible)
+2. Click "Logg inn med Feide" button (if not already verified)
+3. Navigate to Feide OAuth, select "Feide testbrukere"
+4. Login with test user (e.g., `alexander123elev`, password `098asd`)
+5. Redirect back to `/galleri` with URL parameters
+6. Verify DEMOMODUS overlay is now hidden
+7. Check `localStorage.cameViaFeide` should be `"true"`
+8. Refresh page - overlay should stay hidden (persistent verification)
 
 ## Feide Integration Documentation
 
@@ -317,10 +367,11 @@ npx ampx sandbox secret set FEIDE_CLIENT_SECRET
 10. Verify gallery images no longer show "DEMOMODUS" overlay
 
 **Testing Different Scenarios:**
-- **First visit**: Shows login button, overlays visible
-- **After Feide verification**: Shows confirmation, overlays hidden
-- **Refresh after verification**: Verification persists (localStorage)
+- **First visit**: Shows login button, DEMOMODUS overlays visible on gallery images
+- **After Feide verification**: Login button disappears, overlays hidden
+- **Refresh after verification**: Verification persists (localStorage), no login button shown
 - **Different browser/incognito**: Shows login button again (no localStorage)
+- **Logout**: Clears both Cognito session and Feide verification flags
 
 **Automated Testing with Playwright:**
 ```bash
